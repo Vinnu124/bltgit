@@ -31,6 +31,9 @@ class Advertiser: NSObject, CBPeripheralManagerDelegate {
         shouldAdvertise = false
         peripheralManager.stopAdvertising()
         peripheralManager.removeAllServices()
+        if let psm = publishedPSM {
+            peripheralManager.unpublishL2CAPChannel(psm)
+        }
         publishedPSM = nil
         psmCharacteristic = nil
     }
@@ -64,9 +67,11 @@ class Advertiser: NSObject, CBPeripheralManagerDelegate {
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
         case .poweredOn:
-            isReady = true
-            if shouldAdvertise {
-                startPublishingAndAdvertising()
+            if !isReady {
+                isReady = true
+                if shouldAdvertise {
+                    startPublishingAndAdvertising()
+                }
             }
         case .poweredOff:
             onError?(NSError(domain: "bltgit", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bluetooth is powered off"]))
