@@ -33,6 +33,9 @@ struct ServeCommand: Command {
         }
         
         advertiser.startAdvertising()
+        
+        // Keep the server alive indefinitely without leaking continuations
+        try? await Task.sleep(nanoseconds: UInt64.max)
     }
 }
 
@@ -60,7 +63,7 @@ struct PullCommand: Command {
          let scanner = Scanner()
          let devices = try await scanner.scan()
          
-         guard let device = devices.first(where: { $0.name == deviceName }) else {
+         guard let device = devices.first(where: { $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName }) else {
               print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
               return
          }
@@ -82,11 +85,34 @@ struct PullCommand: Command {
     }
 }
 
-// Push not implemented for brevity of this pass
+// Push command implemented
 struct PushCommand: Command {
     let deviceName: String
     func run() async throws {
-         print("Push not implemented yet.")
+         let repo = try RepoManager(path: FileManager.default.currentDirectoryPath)
+         print("Scanning for \(deviceName)...")
+         let scanner = Scanner()
+         let devices = try await scanner.scan()
+         
+         guard let device = devices.first(where: { $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName }) else {
+              print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
+              return
+         }
+         
+         print("Connecting to \(device.name)...")
+         let client = L2CAPClient()
+         let bridge = try await client.connect(to: device)
+         
+         let paired = try await PairingManager.shared.performPairing(bridge: bridge, deviceName: device.name, identifier: device.peripheral.identifier, isServer: false)
+         
+         if paired {
+              let gitClient = GitClient(bridge: bridge, repo: repo)
+              try await gitClient.push()
+         } else {
+              print("Pairing failed.")
+         }
+         
+         bridge.close()
     }
 }
 
@@ -100,7 +126,7 @@ struct CloneCommand: Command {
          let scanner = Scanner()
          let devices = try await scanner.scan()
          
-         guard let device = devices.first(where: { $0.name == deviceName }) else {
+         guard let device = devices.first(where: { $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName }) else {
               print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
               return
          }
