@@ -8,10 +8,16 @@ class RepoManager {
     }
     
     static func initialize(at path: String) throws -> RepoManager {
+        let fileManager = FileManager.default
+        let url = URL(fileURLWithPath: path)
+        if !fileManager.fileExists(atPath: url.path) {
+            try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+        
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["init"]
-        process.currentDirectoryURL = URL(fileURLWithPath: path)
+        process.currentDirectoryURL = url
         try process.run()
         process.waitUntilExit()
         return try RepoManager(path: path)
@@ -126,6 +132,20 @@ class RepoManager {
          
          if process.terminationStatus != 0 {
              throw NSError(domain: "bltgit", code: 25, userInfo: [NSLocalizedDescriptionKey: "git update-ref failed"])
+         }
+    }
+    
+    func checkout() throws {
+         let process = Process()
+         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+         process.arguments = ["checkout", "-f", "HEAD"]
+         process.currentDirectoryURL = repoURL
+         
+         do {
+             try process.run()
+             process.waitUntilExit()
+         } catch {
+             print("Checkout failed: \(error)")
          }
     }
 }
