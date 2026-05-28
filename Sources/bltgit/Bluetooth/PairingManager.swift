@@ -5,24 +5,38 @@ class PairingManager {
     static let shared = PairingManager()
     
     func performPairing(bridge: StreamBridge, deviceName: String, identifier: UUID, isServer: Bool) async throws -> Bool {
-        if TrustStore.shared.isTrusted(identifier: identifier) {
-            return true
-        }
+        let isTrustedLocally = TrustStore.shared.isTrusted(identifier: identifier)
         
-        let pin: String
-        let receivedHash: Data
+        var pin: String = ""
         
         if isServer {
             pin = String(format: "%06d", Int.random(in: 0..<1000000))
             print("\nPairing request from \(deviceName).")
             print("Please verify they see the PIN: \(pin)")
-            
+        } else {
+            print("\nConnecting to \(deviceName)...")
+        }
+        
+        // Mutual trust handshake to prevent desync
+        try await bridge.write(data: Data([isTrustedLocally ? 1 : 0]))
+        let peerResponse = try await bridge.read(count: 1)
+        let isTrustedByPeer = peerResponse.first == 1
+        
+        if isTrustedLocally && isTrustedByPeer {
+            print("Mutual trust established with \(deviceName). Skipping PIN.")
+            return true
+        } else if isTrustedLocally {
+            print("Trust desync detected. Resetting trust for \(deviceName).")
+            TrustStore.shared.removeDevice(identifier: identifier)
+        }
+        
+        if isServer {
             // Server sends hash first
             try await bridge.write(data: hash(pin))
             
             // Server reads client response (1 byte, 1 for yes, 0 for no)
             let response = try await bridge.read(count: 1)
-            let approved = response[0] == 1
+            let approved = response.first == 1
             
             if approved {
                 print("Client confirmed pairing.")
@@ -50,7 +64,7 @@ class PairingManager {
                 
                 print("Waiting for server confirmation...")
                 let serverResponse = try await bridge.read(count: 1)
-                if serverResponse[0] == 1 {
+                if serverResponse.first == 1 {
                     print("Pairing successful.")
                     TrustStore.shared.addDevice(identifier: identifier, name: deviceName)
                     return true
