@@ -1,4 +1,5 @@
 import Foundation
+import CoreBluetooth
 
 enum StreamError: Error {
     case timeout
@@ -7,16 +8,18 @@ enum StreamError: Error {
 }
 
 class StreamBridge: NSObject, StreamDelegate {
+    private let channel: CBL2CAPChannel?
     private let inputStream: InputStream
     private let outputStream: OutputStream
     private var buffer = Data()
     
-    private var inputContinuation: CheckedContinuation<Void, Never>?
+    private let lock = NSLock()
     private var isClosed = false
     
-    init(inputStream: InputStream, outputStream: OutputStream) {
+    init(inputStream: InputStream, outputStream: OutputStream, channel: CBL2CAPChannel? = nil) {
         self.inputStream = inputStream
         self.outputStream = outputStream
+        self.channel = channel
         super.init()
         
         inputStream.delegate = self
@@ -31,28 +34,36 @@ class StreamBridge: NSObject, StreamDelegate {
     }
     
     func close() {
+        lock.lock()
         isClosed = true
+        lock.unlock()
         inputStream.close()
         outputStream.close()
-        inputContinuation?.resume()
-        inputContinuation = nil
     }
     
     func read(count: Int) async throws -> Data {
-        while buffer.count < count {
-            if isClosed && buffer.count < count {
+        while true {
+            lock.lock()
+            if buffer.count >= count {
+                let result = buffer.prefix(count)
+                buffer.removeFirst(count)
+                lock.unlock()
+                return result
+            }
+            if isClosed {
+                lock.unlock()
                 throw StreamError.closed
             }
-            await withCheckedContinuation { continuation in
-                self.inputContinuation = continuation
-            }
+            lock.unlock()
+            
+            // Poll for data. Solves all race conditions safely.
+            try await Task.sleep(nanoseconds: 10_000_000) // 10ms
         }
-        let result = buffer.prefix(count)
-        buffer.removeFirst(count)
-        return result
     }
     
     func readAvailable() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
         let result = buffer
         buffer.removeAll()
         return result
@@ -61,7 +72,10 @@ class StreamBridge: NSObject, StreamDelegate {
     func write(data: Data) async throws {
         var remaining = data
         while !remaining.isEmpty {
-            if isClosed { throw StreamError.closed }
+            lock.lock()
+            let closed = isClosed
+            lock.unlock()
+            if closed { throw StreamError.closed }
             
             if outputStream.hasSpaceAvailable {
                 let bytesWritten = remaining.withUnsafeBytes { ptr in
@@ -101,12 +115,12 @@ class StreamBridge: NSObject, StreamDelegate {
         while inputStream.hasBytesAvailable {
             let bytesRead = inputStream.read(&tempBuffer, maxLength: bufferSize)
             if bytesRead > 0 {
+                lock.lock()
                 buffer.append(tempBuffer, count: bytesRead)
+                lock.unlock()
             } else {
                 break
             }
         }
-        inputContinuation?.resume()
-        inputContinuation = nil
     }
 }

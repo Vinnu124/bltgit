@@ -15,21 +15,33 @@ class L2CAPClient: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     }
     
     func connect(to device: DiscoveredDevice) async throws -> StreamBridge {
-        guard centralManager.state == .poweredOn else {
-            throw NSError(domain: "bltgit", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bluetooth not powered on"])
+        // Wait briefly if state is unknown right after init
+        for _ in 0..<10 {
+            if centralManager.state == .poweredOn { break }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
         }
         
-        targetPeripheral = device.peripheral
+        guard centralManager.state == .poweredOn else {
+            throw NSError(domain: "bltgit", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bluetooth not powered on (State: \(centralManager.state.rawValue))"])
+        }
+        
+        // Re-retrieve the peripheral using THIS manager instance
+        let retrieved = centralManager.retrievePeripherals(withIdentifiers: [device.peripheral.identifier])
+        guard let validPeripheral = retrieved.first else {
+            throw NSError(domain: "bltgit", code: 9, userInfo: [NSLocalizedDescriptionKey: "Could not retrieve peripheral context for connection"])
+        }
+        
+        targetPeripheral = validPeripheral
         targetPeripheral?.delegate = self
         
         return try await withCheckedThrowingContinuation { continuation in
             self.connectContinuation = continuation
-            centralManager.connect(device.peripheral, options: nil)
+            centralManager.connect(validPeripheral, options: nil)
             
             Task {
                 try await Task.sleep(nanoseconds: 15_000_000_000)
                 if self.connectContinuation != nil {
-                    self.centralManager.cancelPeripheralConnection(device.peripheral)
+                    self.centralManager.cancelPeripheralConnection(validPeripheral)
                     self.connectContinuation?.resume(throwing: NSError(domain: "bltgit", code: 3, userInfo: [NSLocalizedDescriptionKey: "Connection timed out"]))
                     self.connectContinuation = nil
                 }
@@ -112,7 +124,7 @@ class L2CAPClient: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             return
         }
         
-        let bridge = StreamBridge(inputStream: channel.inputStream, outputStream: channel.outputStream)
+        let bridge = StreamBridge(inputStream: channel.inputStream, outputStream: channel.outputStream, channel: channel)
         bridge.start()
         
         connectContinuation?.resume(returning: bridge)
