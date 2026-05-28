@@ -56,6 +56,19 @@ class StreamBridge: NSObject, StreamDelegate {
             }
             lock.unlock()
             
+            // Proactively try to read from stream instead of just waiting for delegate
+            if inputStream.hasBytesAvailable {
+                let bufferSize = 1024
+                var tempBuffer = [UInt8](repeating: 0, count: bufferSize)
+                let bytesRead = inputStream.read(&tempBuffer, maxLength: bufferSize)
+                if bytesRead > 0 {
+                    lock.lock()
+                    buffer.append(tempBuffer, count: bytesRead)
+                    lock.unlock()
+                    continue
+                }
+            }
+            
             // Poll for data. Solves all race conditions safely.
             try await Task.sleep(nanoseconds: 10_000_000) // 10ms
         }
