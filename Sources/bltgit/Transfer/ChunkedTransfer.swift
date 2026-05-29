@@ -45,9 +45,9 @@ class ChunkedTransfer {
                 // Wait for ACK
                 let ack = try await bridge.read(count: 5) // 4 bytes seq, 1 byte status
                 
-                let ackSeqBytes = ack[0..<4]
-                let ackSeq = ackSeqBytes.withUnsafeBytes { $0.load(as: UInt32.self) }.bigEndian
-                let status = ack[4]
+                let ackSeqBytes = ack.prefix(4)
+                let ackSeq = ackSeqBytes.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }.bigEndian
+                let status = ack.dropFirst(4).first ?? 0
                 
                 if ackSeq == sequenceNumber && status == 1 {
                     return // Success
@@ -66,11 +66,11 @@ class ChunkedTransfer {
         
         while true {
             let header = try await bridge.read(count: 8)
-            let seqBytes = header[0..<4]
-            let lenBytes = header[4..<8]
+            let seqBytes = header.prefix(4)
+            let lenBytes = header.dropFirst(4).prefix(4)
             
-            let seq = seqBytes.withUnsafeBytes { $0.load(as: UInt32.self) }.bigEndian
-            let len = lenBytes.withUnsafeBytes { $0.load(as: UInt32.self) }.bigEndian
+            let seq = seqBytes.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }.bigEndian
+            let len = lenBytes.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }.bigEndian
             
             if len == 0 {
                 // End of transfer

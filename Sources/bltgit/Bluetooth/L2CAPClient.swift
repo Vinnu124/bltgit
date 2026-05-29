@@ -105,7 +105,7 @@ class L2CAPClient: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             return
         }
         
-        let psmValue = data.withUnsafeBytes { $0.load(as: UInt16.self) }
+        let psmValue = data.withUnsafeBytes { $0.loadUnaligned(as: UInt16.self) }
         let psm = CFSwapInt16LittleToHost(psmValue)
         
         peripheral.openL2CAPChannel(CBL2CAPPSM(psm))
