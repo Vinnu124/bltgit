@@ -40,9 +40,12 @@ class Scanner: NSObject, CBCentralManagerDelegate {
         
         return try await withCheckedThrowingContinuation { continuation in
             self.scanContinuation = continuation
-            
-            Task {
-                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+
+            // Run on @MainActor so the post-sleep mutations happen on the same
+            // thread as CBCentralManager's delegate callbacks — preventing data
+            // races on `scanContinuation` and `discoveredDevices`.
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
                 self.stopScanning()
                 if let cont = self.scanContinuation {
                     self.scanContinuation = nil
