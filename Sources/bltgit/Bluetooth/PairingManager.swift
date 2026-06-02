@@ -41,7 +41,7 @@ class PairingManager {
             if approved {
                 print("Client confirmed pairing.")
                 print("Do you confirm? (y/n)")
-                let userApprove = readLine()?.lowercased() == "y"
+                let userApprove = (await asyncReadLine())?.lowercased() == "y"
                 try await bridge.write(data: Data([userApprove ? 1 : 0]))
                 if userApprove {
                     TrustStore.shared.addDevice(identifier: identifier, name: deviceName)
@@ -56,7 +56,7 @@ class PairingManager {
             print("\nConnecting to \(deviceName) for the first time.")
             print("Enter the PIN shown on \(deviceName):")
             
-            guard let enteredPin = readLine() else { return false }
+            guard let enteredPin = await asyncReadLine() else { return false }
             
             let ourHash = hash(enteredPin)
             if ourHash == serverHash {
@@ -80,6 +80,16 @@ class PairingManager {
         }
     }
     
+    /// Reads a line from stdin without blocking a cooperative-pool thread.
+    /// The actual blocking read is dispatched to a global utility queue.
+    private func asyncReadLine() async -> String? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInteractive).async {
+                continuation.resume(returning: readLine())
+            }
+        }
+    }
+
     private func hash(_ string: String) -> Data {
         guard let data = string.data(using: .utf8) else { return Data() }
         var digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
