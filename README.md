@@ -2,7 +2,7 @@
 
 > **Peer-to-peer Git over Bluetooth. Push, pull, and clone repositories between nearby Macs without Wi-Fi, internet, or a server.**
 
-Think of it as `git push` for the physical world. If you're sitting next to someone and want to share a repo, no hotspot, no GitHub, no cables. Just run `bltgit serve` on one Mac and `bltgit clone` on the other.
+If you're sitting next to someone and want to share a repo, no hotspot, no GitHub, no cables. Just run `bltgit serve` on one Mac and `bltgit clone` on the other.
 
 ---
 
