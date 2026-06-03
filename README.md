@@ -2,8 +2,7 @@
 
 > **Peer-to-peer Git over Bluetooth. Push, pull, and clone repositories between nearby Macs without Wi-Fi, internet, or a server.**
 
-If you're sitting next to someone and want to share a repo, no hotspot, no GitHub, no cables. Just run `bltgit serve` on one Mac and `bltgit clone` on the other.
-
+The git transfer tool that works when there's no network. Just Bluetooth.
 ---
 
 
@@ -38,7 +37,7 @@ swift build -c release
 
 To install system-wide:
 ```bash
-sudo cp .build/arm64-apple-macosx/release/bltgit /usr/local/bin/bltgit
+sudo cp .build/arm64-apple-macosx/debug/bltgit /usr/local/bin/bltgit
 ```
 
 For a quick test without installing, you can also just run the debug build:
