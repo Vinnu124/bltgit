@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: macos-14
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "15.4"
+
+      - name: Build release binary
+        run: swift build -c release
+
+      - name: Package binary
+        run: |
+          BINARY=$(find .build -name "bltgit" -type f | grep release | grep -v dSYM | head -1)
+          echo "Binary found at: $BINARY"
+          cp "$BINARY" bltgit
+          zip bltgit-${{ github.ref_name }}-macos.zip bltgit
+          echo "ASSET=bltgit-${{ github.ref_name }}-macos.zip" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "bltgit ${{ github.ref_name }}"
+          body: |
+            ## bltgit ${{ github.ref_name }}
+
+            Peer-to-peer Git over Bluetooth. Push, pull, and clone repositories between nearby Macs without Wi-Fi, internet, or a server.
+
+            ### Install
+
+            Download the zip below, unzip it, and move the binary to your PATH:
+
+            ```bash
+            unzip bltgit-${{ github.ref_name }}-macos.zip
+            sudo mv bltgit /usr/local/bin/bltgit
+            ```
+
+            ### Requirements
+            - macOS 13.0 or later
+            - Bluetooth hardware
+            - `git` installed on both machines
+          files: ${{ env.ASSET }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
