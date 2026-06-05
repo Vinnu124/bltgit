@@ -58,7 +58,12 @@ class GitClient {
         }
         try await bridge.write(data: PktLine.encode("done\n"))
         
-        // Read pack
+        // Read NAK (server's acknowledgement before sending pack)
+        // The server sends a pkt-line "NAK\n" before starting chunked transfer.
+        // We must consume it here to stay in sync with the protocol.
+        _ = try await PktLine.decodeFrom(stream: bridge) // discard NAK
+
+        // Read pack via chunked transfer
         let chunker = ChunkedTransfer(bridge: bridge)
         let packData = try await chunker.receive()
         

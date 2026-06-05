@@ -52,6 +52,9 @@ class ChunkedTransfer {
                 if ackSeq == sequenceNumber && status == 1 {
                     return // Success
                 }
+            } catch let streamErr as StreamError where streamErr == .closed {
+                // Connection is gone — retrying won't help.
+                throw streamErr
             } catch {
                 print("Error sending chunk \(sequenceNumber): \(error). Retrying...")
             }
