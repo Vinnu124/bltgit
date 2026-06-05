@@ -30,28 +30,40 @@ class GitServer {
         var pushCommands: [(String, String, String)] = []
         var isPush = false
         
+        // Phase 1: read wants (and push commands) until flush
         while true {
-            guard let lineData = try await PktLine.decodeFrom(stream: bridge) else { break }
+            guard let lineData = try await PktLine.decodeFrom(stream: bridge) else { break } // flush ends phase 1
             let line = String(data: lineData, encoding: .utf8) ?? ""
             if line.hasPrefix("want ") {
                  let parts = line.components(separatedBy: .whitespaces)
                  if parts.count >= 2 {
                      wants.append(parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
                  }
-            } else if line.hasPrefix("have ") {
-                 let parts = line.components(separatedBy: .whitespaces)
-                 if parts.count >= 2 {
-                     haves.append(parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
-                 }
-            } else if line.hasPrefix("done") {
-                 break
             } else if line.count >= 82 && line.contains("refs/") {
-                 // It's a push command! (old_hash new_hash refname)
+                 // Push command: old_hash new_hash refname
                  isPush = true
                  let parts = line.components(separatedBy: " ")
                  if parts.count >= 3 {
                       pushCommands.append((parts[0], parts[1], parts[2].components(separatedBy: "\0")[0].trimmingCharacters(in: .whitespacesAndNewlines)))
                  }
+            }
+        }
+        
+        // Phase 2: read haves and "done" (client always sends these after the flush)
+        // IMPORTANT: these bytes MUST be consumed before we start chunked transfer,
+        // otherwise they corrupt the ACK reads.
+        if !isPush {
+            while true {
+                guard let lineData = try await PktLine.decodeFrom(stream: bridge) else { break }
+                let line = String(data: lineData, encoding: .utf8) ?? ""
+                if line.hasPrefix("have ") {
+                    let parts = line.components(separatedBy: .whitespaces)
+                    if parts.count >= 2 {
+                        haves.append(parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
+                    }
+                } else if line.hasPrefix("done") {
+                    break
+                }
             }
         }
         
