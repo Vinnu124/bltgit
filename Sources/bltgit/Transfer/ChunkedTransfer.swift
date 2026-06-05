@@ -2,12 +2,15 @@ import Foundation
 
 class ChunkedTransfer {
     let bridge: StreamBridge
-    private let chunkSize = 60 * 1024 // 60KB
-    
+    private let chunkSize = 60 * 1024 // 60 KB
+
+    /// Optional progress callback — called with the number of bytes just confirmed sent/received.
+    var onProgress: ((Int) -> Void)?
+
     init(bridge: StreamBridge) {
         self.bridge = bridge
     }
-    
+
     func send(data: Data) async throws {
         var offset = 0
         var sequenceNumber: UInt32 = 0
@@ -20,35 +23,36 @@ class ChunkedTransfer {
             
             offset += length
             sequenceNumber += 1
+            onProgress?(length) // ← report bytes confirmed by ACK
         }
-        
-        // End of transfer chunk (length 0)
+
+        // End-of-transfer sentinel (length = 0)
         try await sendWithRetry(sequenceNumber: sequenceNumber, chunkData: Data())
     }
-    
+
     private func sendWithRetry(sequenceNumber: UInt32, chunkData: Data) async throws {
         let maxRetries = 3
         var retries = 0
-        
+
         while retries < maxRetries {
             do {
                 var chunk = Data()
                 var seq = CFSwapInt32HostToBig(sequenceNumber)
                 var len = CFSwapInt32HostToBig(UInt32(chunkData.count))
-                
+
                 chunk.append(Data(bytes: &seq, count: 4))
                 chunk.append(Data(bytes: &len, count: 4))
                 chunk.append(chunkData)
-                
+
                 try await bridge.write(data: chunk)
-                
+
                 // Wait for ACK
                 let ack = try await bridge.read(count: 5) // 4 bytes seq, 1 byte status
-                
+
                 let ackSeqBytes = ack.prefix(4)
                 let ackSeq = ackSeqBytes.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }.bigEndian
                 let status = ack.dropFirst(4).first ?? 0
-                
+
                 if ackSeq == sequenceNumber && status == 1 {
                     return // Success
                 }
@@ -56,13 +60,14 @@ class ChunkedTransfer {
                 // Connection is gone — retrying won't help.
                 throw streamErr
             } catch {
-                print("Error sending chunk \(sequenceNumber): \(error). Retrying...")
+                print("\nError sending chunk \(sequenceNumber): \(error). Retrying...")
             }
             retries += 1
         }
-        throw NSError(domain: "bltgit", code: 10, userInfo: [NSLocalizedDescriptionKey: "Failed to send chunk after max retries"])
+        throw NSError(domain: "bltgit", code: 10,
+                      userInfo: [NSLocalizedDescriptionKey: "Failed to send chunk after max retries"])
     }
-    
+
     func receive() async throws -> Data {
         var result = Data()
         var expectedSeq: UInt32 = 0
@@ -71,10 +76,10 @@ class ChunkedTransfer {
             let header = try await bridge.read(count: 8)
             let seqBytes = header.prefix(4)
             let lenBytes = header.dropFirst(4).prefix(4)
-            
+
             let seq = seqBytes.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }.bigEndian
             let len = lenBytes.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }.bigEndian
-            
+
             if len == 0 {
                 // End of transfer
                 try await sendAck(sequenceNumber: seq, status: 1)
@@ -86,19 +91,20 @@ class ChunkedTransfer {
             if seq == expectedSeq {
                 result.append(chunkData)
                 try await sendAck(sequenceNumber: seq, status: 1)
+                onProgress?(Int(len)) // ← report bytes received and ACK'd
                 expectedSeq += 1
             } else if seq < expectedSeq {
-                // We already have this, maybe our ACK got lost. Ack it again.
+                // Already received; ACK lost — resend ACK.
                 try await sendAck(sequenceNumber: seq, status: 1)
             } else {
-                // Out of order? Nack.
+                // Out of order — NACK.
                 try await sendAck(sequenceNumber: seq, status: 0)
             }
         }
-        
+
         return result
     }
-    
+
     private func sendAck(sequenceNumber: UInt32, status: UInt8) async throws {
         var ack = Data()
         var seq = CFSwapInt32HostToBig(sequenceNumber)
