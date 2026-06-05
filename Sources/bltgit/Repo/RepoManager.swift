@@ -89,7 +89,7 @@ class RepoManager {
     func generatePack(wants: [String], haves: [String]) throws -> Data {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["pack-objects", "--stdout", "--revs", "--thin",
+        process.arguments = ["pack-objects", "--stdout", "--revs",
                              "--delta-base-offset", "-q"]
         process.currentDirectoryURL = repoURL
 
@@ -127,42 +127,74 @@ class RepoManager {
     // MARK: - Pack application
 
     func applyPack(data: Data) throws {
+        guard !data.isEmpty else {
+            throw NSError(domain: "bltgit", code: 24,
+                          userInfo: [NSLocalizedDescriptionKey: "Received empty pack data"])
+        }
+        print("Applying pack: \(data.count) bytes...")
+
+        let fm = FileManager.default
+
+        // Write the pack to a temp file — avoids stdin pipe races on large packs.
+        let tempPack = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("bltgit-\(UUID().uuidString).pack")
+        try data.write(to: tempPack)
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["index-pack", "--stdin", "--fix-thin", "-q"]
+        // index-pack <file> creates <file>.idx alongside the pack file.
+        process.arguments = ["index-pack", tempPack.path]
         process.currentDirectoryURL = repoURL
 
-        let inPipe = Pipe()
+        let outPipe = Pipe()
         let errPipe = Pipe()
-        process.standardInput = inPipe
+        process.standardOutput = outPipe
         process.standardError = errPipe
 
         try process.run()
-
-        // Write on a background thread to prevent deadlocking when the pack
-        // data exceeds the kernel pipe buffer (≈ 65 KB on macOS).  If we
-        // wrote synchronously, the main thread could block on write() while
-        // git is trying to write its output and has nobody reading it.
-        let writer = DispatchQueue(label: "bltgit.applypack.write")
-        writer.async {
-            inPipe.fileHandleForWriting.write(data)
-            inPipe.fileHandleForWriting.closeFile()
-        }
-
         process.waitUntilExit()
 
+        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+
         if process.terminationStatus != 0 {
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
             let msg = String(data: errData, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown error"
+            try? fm.removeItem(at: tempPack)
+            try? fm.removeItem(at: tempPack.deletingPathExtension().appendingPathExtension("idx"))
             throw NSError(domain: "bltgit", code: 24,
                           userInfo: [NSLocalizedDescriptionKey: "git index-pack failed: \(msg)"])
         }
+
+        // Capture the SHA from stdout so we can give the files canonical names.
+        let sha = String(data: outData, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        // Move .pack and .idx into the repo's pack directory.
+        let packDir = repoURL.appendingPathComponent(".git/objects/pack")
+        try fm.createDirectory(at: packDir, withIntermediateDirectories: true)
+
+        let baseName = sha.count == 40 ? "pack-\(sha)" : "pack-bltgit-\(UUID().uuidString)"
+        let tempIdx = tempPack.deletingPathExtension().appendingPathExtension("idx")
+        let destPack = packDir.appendingPathComponent("\(baseName).pack")
+        let destIdx  = packDir.appendingPathComponent("\(baseName).idx")
+
+        do {
+            try fm.moveItem(at: tempPack, to: destPack)
+            try fm.moveItem(at: tempIdx,  to: destIdx)
+        } catch {
+            try? fm.removeItem(at: tempPack)
+            try? fm.removeItem(at: tempIdx)
+            throw error
+        }
+
+        print("Pack indexed and stored: \(baseName)")
     }
 
     // MARK: - Ref updates
 
     func updateRef(name: String, hash: String) throws {
+        print("Setting ref \(name) → \(hash)")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["update-ref", name, hash]
@@ -178,9 +210,28 @@ class RepoManager {
             let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
             let msg = String(data: errData, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown error"
+            print("  ✗ updateRef failed: \(msg)")
             throw NSError(domain: "bltgit", code: 25,
                           userInfo: [NSLocalizedDescriptionKey: "git update-ref failed: \(msg)"])
         }
+        print("  ✓ ref set")
+    }
+
+    // MARK: - HEAD management
+
+    /// Points HEAD at the given full ref name (e.g. "refs/heads/main").
+    func setHead(to refName: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["symbolic-ref", "HEAD", refName]
+        process.currentDirectoryURL = repoURL
+
+        let errPipe = Pipe()
+        process.standardError = errPipe
+
+        try process.run()
+        process.waitUntilExit()
+        // Non-zero exit is non-fatal: if the ref is detached it just won't be set
     }
 
     // MARK: - Working-tree checkout
@@ -188,12 +239,22 @@ class RepoManager {
     func checkout() throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["checkout", "-f", "HEAD"]
+        // `reset --hard HEAD` rebuilds both the index and working tree from scratch.
+        // More reliable than `checkout -f HEAD` after index-pack on a fresh repo.
+        process.arguments = ["reset", "--hard", "HEAD"]
         process.currentDirectoryURL = repoURL
+
+        let errPipe = Pipe()
+        process.standardError = errPipe
 
         do {
             try process.run()
             process.waitUntilExit()
+            if process.terminationStatus != 0 {
+                let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+                let msg = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown"
+                print("Checkout failed: \(msg)")
+            }
         } catch {
             print("Checkout failed: \(error)")
         }

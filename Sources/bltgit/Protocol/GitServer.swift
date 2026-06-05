@@ -111,6 +111,7 @@ class GitServer {
         let reporter = ProgressReporter(totalBytes: packData.count)
         
         let chunker = ChunkedTransfer(bridge: bridge)
+        chunker.onProgress = { bytes in reporter.update(bytesDiff: bytes) }
         try await chunker.send(data: packData)
         
         reporter.finish()
