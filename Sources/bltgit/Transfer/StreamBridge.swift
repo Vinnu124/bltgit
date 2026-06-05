@@ -1,7 +1,7 @@
 import Foundation
 import CoreBluetooth
 
-enum StreamError: Error {
+enum StreamError: Error, Equatable {
     case timeout
     case closed
     case unknown
@@ -128,7 +128,8 @@ final class StreamBridge: NSObject, StreamDelegate, @unchecked Sendable {
                     )
                 }
                 if n < 0 {
-                    throw StreamError.unknown
+                    // Negative means the stream is broken / peer closed.
+                    throw StreamError.closed
                 } else if n > 0 {
                     remaining.removeFirst(n)
                 } else {
