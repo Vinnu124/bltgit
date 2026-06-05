@@ -64,15 +64,25 @@ class GitClient {
         _ = try await PktLine.decodeFrom(stream: bridge) // discard NAK
 
         // Read pack via chunked transfer
+        let reporter = ProgressReporter(totalBytes: nil) // total unknown on client side
         let chunker = ChunkedTransfer(bridge: bridge)
+        chunker.onProgress = { bytes in reporter.update(bytesDiff: bytes) }
         let packData = try await chunker.receive()
+        reporter.finish()
         
         try repo.applyPack(data: packData)
         
+        // Update all refs that differ from local
         for (name, hash) in serverRefs {
              if localRefs[name] != hash {
                  try repo.updateRef(name: name, hash: hash)
              }
+        }
+        
+        // Point HEAD at the correct branch before checkout so working tree is populated.
+        // In a fresh clone the default branch may not match what the server has.
+        if let headBranch = serverRefs.keys.first(where: { $0.hasPrefix("refs/heads/") }) {
+            try repo.setHead(to: headBranch)
         }
         
         // Checkout files into working directory
