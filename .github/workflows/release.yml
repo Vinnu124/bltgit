@@ -19,7 +19,7 @@ jobs:
       - name: Set up Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "15.4"
+          xcode-version: "16"
 
       - name: Build release binary
         run: swift build -c release
