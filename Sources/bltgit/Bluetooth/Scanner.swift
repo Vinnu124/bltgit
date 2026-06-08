@@ -1,13 +1,15 @@
 import Foundation
 import CoreBluetooth
 
-struct DiscoveredDevice {
+// CBPeripheral is an ObjC class; we access it only on the main thread
+// (CB delegate callbacks), so @unchecked Sendable is safe here.
+struct DiscoveredDevice: @unchecked Sendable {
     let name: String
     let peripheral: CBPeripheral
     let rssi: Int
 }
 
-class Scanner: NSObject, CBCentralManagerDelegate {
+class Scanner: NSObject, CBCentralManagerDelegate, @unchecked Sendable {
     private var centralManager: CBCentralManager!
     private let serviceUUID = CBUUID(string: "A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D")
     

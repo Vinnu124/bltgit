@@ -1,4 +1,4 @@
-// swift-tools-version: 5.8
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -8,13 +8,11 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "bltgit",
-            path: "Sources"
+            name: "bltgit"
         ),
         .testTarget(
             name: "bltgitTests",
-            dependencies: ["bltgit"],
-            path: "Tests"
+            dependencies: ["bltgit"]
         ),
     ]
 )

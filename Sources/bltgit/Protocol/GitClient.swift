@@ -1,6 +1,6 @@
 import Foundation
 
-class GitClient {
+class GitClient: @unchecked Sendable {
     private let bridge: StreamBridge
     private let repo: RepoManager
     

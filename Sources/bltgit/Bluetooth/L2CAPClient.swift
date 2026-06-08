@@ -1,7 +1,7 @@
 import Foundation
 import CoreBluetooth
 
-class L2CAPClient: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+class L2CAPClient: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @unchecked Sendable {
     private var centralManager: CBCentralManager!
     private var targetPeripheral: CBPeripheral?
     private let serviceUUID = CBUUID(string: "A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D")
@@ -38,10 +38,14 @@ class L2CAPClient: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             self.connectContinuation = continuation
             centralManager.connect(validPeripheral, options: nil)
             
-            Task {
+            // Box the peripheral so the @MainActor timeout task can capture it
+            // without triggering a Swift 6 sendability error.  CB callbacks for
+            // this peripheral always arrive on the main thread, so this is safe.
+            nonisolated(unsafe) let peripheralBox = validPeripheral
+            Task { @MainActor in
                 try await Task.sleep(nanoseconds: 15_000_000_000)
                 if self.connectContinuation != nil {
-                    self.centralManager.cancelPeripheralConnection(validPeripheral)
+                    self.centralManager.cancelPeripheralConnection(peripheralBox)
                     self.connectContinuation?.resume(throwing: NSError(domain: "bltgit", code: 3, userInfo: [NSLocalizedDescriptionKey: "Connection timed out"]))
                     self.connectContinuation = nil
                 }

@@ -1,6 +1,6 @@
 import Foundation
 
-class GitServer {
+class GitServer: @unchecked Sendable {
     private let bridge: StreamBridge
     private let repo: RepoManager
     

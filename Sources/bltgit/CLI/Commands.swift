@@ -1,6 +1,7 @@
 import Foundation
 import CoreBluetooth
 
+@MainActor
 protocol Command {
     func run() async throws
 }

@@ -3,7 +3,7 @@ import Foundation
 let arguments = CommandLine.arguments
 
 if let command = CommandParser.parse(arguments: arguments) {
-    Task {
+    Task { @MainActor in
          do {
               try await command.run()
               if !(command is ServeCommand) {

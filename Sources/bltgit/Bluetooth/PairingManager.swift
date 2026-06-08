@@ -1,7 +1,7 @@
 import Foundation
 import CommonCrypto
 
-class PairingManager {
+class PairingManager: @unchecked Sendable {
     static let shared = PairingManager()
     
     func performPairing(bridge: StreamBridge, deviceName: String, identifier: UUID, isServer: Bool) async throws -> Bool {

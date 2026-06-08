@@ -7,7 +7,7 @@ struct TrustedDevice: Codable {
     let pairingDate: Date
 }
 
-class TrustStore {
+class TrustStore: @unchecked Sendable {
     static let shared = TrustStore()
     
     private let storeURL: URL
