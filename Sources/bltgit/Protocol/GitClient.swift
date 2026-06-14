@@ -63,9 +63,10 @@ class GitClient: @unchecked Sendable {
         // We must consume it here to stay in sync with the protocol.
         _ = try await PktLine.decodeFrom(stream: bridge) // discard NAK
 
-        // Read pack via chunked transfer
-        let reporter = ProgressReporter(totalBytes: nil) // total unknown on client side
+        // Receive the packfile with a live progress bar.
+        print("Receiving pack...")
         let chunker = ChunkedTransfer(bridge: bridge)
+        let reporter = ProgressReporter(totalBytes: nil) // server doesn't tell us the total upfront
         chunker.onProgress = { bytes in reporter.update(bytesDiff: bytes) }
         let packData = try await chunker.receive()
         reporter.finish()
@@ -135,11 +136,12 @@ class GitClient: @unchecked Sendable {
         }
         
         let packData = try repo.generatePack(wants: [headHash], haves: haves)
-        
-        // 3. Send the packfile chunked
+
+        // 3. Send the packfile chunked with a live progress bar.
+        print("Sending pack (\(packData.count) bytes)...")
         let chunker = ChunkedTransfer(bridge: bridge)
         let reporter = ProgressReporter(totalBytes: packData.count)
-        
+        chunker.onProgress = { bytes in reporter.update(bytesDiff: bytes) }
         try await chunker.send(data: packData)
         reporter.finish()
         

@@ -68,30 +68,34 @@ class GitServer: @unchecked Sendable {
         }
         
         if isPush {
-            // Handle incoming push
-            let chunker = ChunkedTransfer(bridge: bridge)
-            let packData = try await chunker.receive()
-            
+            // Handle incoming push — receive the pack with a live progress bar.
+            print("Receiving push pack...")
+            let pushChunker = ChunkedTransfer(bridge: bridge)
+            let pushReporter = ProgressReporter()
+            pushChunker.onProgress = { bytes in pushReporter.update(bytesDiff: bytes) }
+            let packData = try await pushChunker.receive()
+            pushReporter.finish()
+
             do {
-                 if packData.count > 0 {
-                     try repo.applyPack(data: packData)
-                 }
-                 
-                 for cmd in pushCommands {
-                     try repo.updateRef(name: cmd.2, hash: cmd.1)
-                 }
-                 
-                 // Send success report
-                 try await bridge.write(data: PktLine.encode("unpack ok\n"))
-                 for cmd in pushCommands {
-                     try await bridge.write(data: PktLine.encode("ok \(cmd.2)\n"))
-                 }
-                 try await bridge.write(data: PktLine.flush)
-                 print("Server push complete.")
+                if packData.count > 0 {
+                    try repo.applyPack(data: packData)
+                }
+
+                for cmd in pushCommands {
+                    try repo.updateRef(name: cmd.2, hash: cmd.1)
+                }
+
+                // Send success report
+                try await bridge.write(data: PktLine.encode("unpack ok\n"))
+                for cmd in pushCommands {
+                    try await bridge.write(data: PktLine.encode("ok \(cmd.2)\n"))
+                }
+                try await bridge.write(data: PktLine.flush)
+                print("Server push complete.")
             } catch {
-                 try await bridge.write(data: PktLine.encode("unpack \(error.localizedDescription)\n"))
-                 try await bridge.write(data: PktLine.flush)
-                 print("Server push failed: \(error)")
+                try await bridge.write(data: PktLine.encode("unpack \(error.localizedDescription)\n"))
+                try await bridge.write(data: PktLine.flush)
+                print("Server push failed: \(error)")
             }
             return
         }
@@ -101,19 +105,16 @@ class GitServer: @unchecked Sendable {
              return
         }
         
-        // Generate pack
+        // Generate pack and send with a live progress bar.
         let packData = try repo.generatePack(wants: wants, haves: haves)
-        
-        // Send sideband pack
-        // We will just send it as one block for now in sideband 1 (data), chunked by ChunkedTransfer
+        print("Sending pack (\(packData.count) bytes)...")
+
         try await bridge.write(data: PktLine.encode("NAK\n"))
-        
-        let reporter = ProgressReporter(totalBytes: packData.count)
-        
+
         let chunker = ChunkedTransfer(bridge: bridge)
+        let reporter = ProgressReporter(totalBytes: packData.count)
         chunker.onProgress = { bytes in reporter.update(bytesDiff: bytes) }
         try await chunker.send(data: packData)
-        
         reporter.finish()
         print("Server pull complete")
     }
