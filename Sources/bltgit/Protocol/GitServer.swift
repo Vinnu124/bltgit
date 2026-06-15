@@ -24,35 +24,38 @@ class GitServer: @unchecked Sendable {
         }
         try await bridge.write(data: PktLine.flush)
         
-        // Read client wants or push commands
+        // Read client wants, push commands, or a bltgit-log request until flush
         var wants: [String] = []
         var haves: [String] = []
         var pushCommands: [(String, String, String)] = []
         var isPush = false
-        
-        // Phase 1: read wants (and push commands) until flush
+        var isLog = false
+
+        // Phase 1: read commands until flush
         while true {
             guard let lineData = try await PktLine.decodeFrom(stream: bridge) else { break } // flush ends phase 1
             let line = String(data: lineData, encoding: .utf8) ?? ""
             if line.hasPrefix("want ") {
-                 let parts = line.components(separatedBy: .whitespaces)
-                 if parts.count >= 2 {
-                     wants.append(parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
-                 }
+                let parts = line.components(separatedBy: .whitespaces)
+                if parts.count >= 2 {
+                    wants.append(parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
+                }
+            } else if line.trimmingCharacters(in: .whitespacesAndNewlines) == "bltgit-log" {
+                isLog = true
             } else if line.count >= 82 && line.contains("refs/") {
-                 // Push command: old_hash new_hash refname
-                 isPush = true
-                 let parts = line.components(separatedBy: " ")
-                 if parts.count >= 3 {
-                      pushCommands.append((parts[0], parts[1], parts[2].components(separatedBy: "\0")[0].trimmingCharacters(in: .whitespacesAndNewlines)))
-                 }
+                // Push command: old_hash new_hash refname
+                isPush = true
+                let parts = line.components(separatedBy: " ")
+                if parts.count >= 3 {
+                    pushCommands.append((parts[0], parts[1], parts[2].components(separatedBy: "\0")[0].trimmingCharacters(in: .whitespacesAndNewlines)))
+                }
             }
         }
         
-        // Phase 2: read haves and "done" (client always sends these after the flush)
+        // Phase 2: read haves and "done" (only for pull; log and push skip this).
         // IMPORTANT: these bytes MUST be consumed before we start chunked transfer,
         // otherwise they corrupt the ACK reads.
-        if !isPush {
+        if !isPush && !isLog {
             while true {
                 guard let lineData = try await PktLine.decodeFrom(stream: bridge) else { break }
                 let line = String(data: lineData, encoding: .utf8) ?? ""
@@ -65,6 +68,20 @@ class GitServer: @unchecked Sendable {
                     break
                 }
             }
+        }
+
+        // Handle log request: run git log and stream lines back as pkt-lines.
+        if isLog {
+            let logLines = (try? repo.gitLog()) ?? []
+            if logLines.isEmpty {
+                try await bridge.write(data: PktLine.encode("(no commits yet)\n"))
+            } else {
+                for line in logLines {
+                    try await bridge.write(data: PktLine.encode(line + "\n"))
+                }
+            }
+            try await bridge.write(data: PktLine.flush)
+            return
         }
         
         if isPush {

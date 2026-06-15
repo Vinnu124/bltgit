@@ -84,6 +84,36 @@ class RepoManager {
         return []
     }
 
+    /// Returns the last `maxCount` commits formatted as one human-readable line each.
+    /// Format: "<short-hash>  <author>  <relative-date>  <subject>"
+    func gitLog(maxCount: Int = 20) throws -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        // %h  = abbreviated hash, %an = author name, %ar = relative date, %s = subject
+        process.arguments = [
+            "log",
+            "--max-count=\(maxCount)",
+            "--pretty=format:%h  %an  %ar  %s",
+            "HEAD"
+        ]
+        process.currentDirectoryURL = repoURL
+
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
+
+        do {
+            try process.run()
+            let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            if process.terminationStatus == 0, let string = String(data: data, encoding: .utf8) {
+                return string.components(separatedBy: .newlines).filter { !$0.isEmpty }
+            }
+        } catch {}
+        return []
+    }
+
     // MARK: - Pack generation
 
     func generatePack(wants: [String], haves: [String]) throws -> Data {

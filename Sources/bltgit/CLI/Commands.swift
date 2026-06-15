@@ -139,6 +139,46 @@ struct PushCommand: Command {
     }
 }
 
+// MARK: - log
+
+struct LogCommand: Command {
+    let deviceName: String
+
+    func run() async throws {
+        print("Scanning for \(deviceName)...")
+        let devices = try await Scanner().scan()
+
+        guard let device = devices.first(where: {
+            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
+        }) else {
+            print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
+            return
+        }
+
+        print("Connecting to \(device.name)...")
+        let bridge = try await L2CAPClient().connect(to: device)
+        defer { bridge.close() }
+
+        let paired = try await PairingManager.shared.performPairing(
+            bridge: bridge,
+            deviceName: device.name,
+            identifier: device.peripheral.identifier,
+            isServer: false
+        )
+
+        if paired {
+            // GitClient.log() doesn't touch the local repo, but the initialiser requires one.
+            // We use the current directory; it doesn't need to be a valid git repo.
+            let repo = try RepoManager(path: FileManager.default.currentDirectoryPath)
+            print("Commit log for \(device.name):")
+            print(String(repeating: "-", count: 60))
+            try await GitClient(bridge: bridge, repo: repo).log()
+        } else {
+            print("Pairing failed.")
+        }
+    }
+}
+
 // MARK: - clone
 
 struct CloneCommand: Command {

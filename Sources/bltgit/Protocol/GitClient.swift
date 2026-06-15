@@ -154,4 +154,31 @@ class GitClient: @unchecked Sendable {
         
         print("Push complete.")
     }
+
+    /// Fetches and prints the remote's recent commit history without downloading any data locally.
+    func log() async throws {
+        // Consume the server's ref advertisement — we don't need the refs for a log.
+        while let _ = try await PktLine.decodeFrom(stream: bridge) {}
+
+        // Request the log.
+        try await bridge.write(data: PktLine.encode("bltgit-log\n"))
+        try await bridge.write(data: PktLine.flush)
+
+        // Read and print each commit line the server sends back.
+        var count = 0
+        while let lineData = try await PktLine.decodeFrom(stream: bridge) {
+            let line = String(data: lineData, encoding: .utf8) ?? ""
+            let trimmed = line.trimmingCharacters(in: .newlines)
+            if trimmed.hasPrefix("error:") {
+                print(trimmed)
+                return
+            }
+            print(trimmed)
+            count += 1
+        }
+
+        if count == 0 {
+            print("No commits on remote.")
+        }
+    }
 }
