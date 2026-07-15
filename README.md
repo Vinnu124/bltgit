@@ -10,7 +10,7 @@ The git transfer tool that works when there's no network. Just Bluetooth.
 
 - **Bluetooth L2CAP channels**: uses CoreBluetooth's direct L2CAP sockets for high-throughput streaming (no BLE GATT overhead)
 - **Full Git protocol**: reads and writes real Git packfiles via `git pack-objects` and `git index-pack`; works with any existing repo
-- **Push, pull and clone**: bidirectional; the server can receive pushes and serve pulls from the same connection
+- **Push, pull, fetch and clone**: bidirectional; fetch downloads commits into `refs/remotes/bltgit/` without touching the working tree
 - **Remote log**: peek at the commit history on another Mac without downloading anything locally
 - **Chunked, reliable transfer**: 60 KB chunks with sequence numbers, ACKs, and retry logic survive transient BT glitches
 - **Mutual PIN pairing**: first-time connections require both sides to confirm a 6-digit PIN; subsequent connections skip it via a local trust store
@@ -91,6 +91,23 @@ On first connection you will be asked to confirm a PIN displayed on the other Ma
 # Inside an existing bltgit-cloned repo:
 bltgit pull "<DEVICE_NAME>"
 ```
+
+---
+
+### Fetch without merging
+
+Download new commits into `refs/remotes/bltgit/` without touching your working tree:
+
+```bash
+bltgit fetch "<DEVICE_NAME>"
+# Fetch complete.
+#   refs/remotes/bltgit/main
+#
+# To inspect:  git log refs/remotes/bltgit/main
+# To merge:    git merge refs/remotes/bltgit/main
+```
+
+Useful when you want to review what changed before committing to a merge.
 
 ---
 

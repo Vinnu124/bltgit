@@ -103,6 +103,42 @@ struct PullCommand: Command {
     }
 }
 
+// MARK: - fetch
+
+struct FetchCommand: Command {
+    let deviceName: String
+
+    func run() async throws {
+        let repo = try RepoManager(path: FileManager.default.currentDirectoryPath)
+        print("Scanning for \(deviceName)...")
+        let devices = try await Scanner().scan()
+
+        guard let device = devices.first(where: {
+            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
+        }) else {
+            print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
+            return
+        }
+
+        print("Connecting to \(device.name)...")
+        let bridge = try await L2CAPClient().connect(to: device)
+        defer { bridge.close() }
+
+        let paired = try await PairingManager.shared.performPairing(
+            bridge: bridge,
+            deviceName: device.name,
+            identifier: device.peripheral.identifier,
+            isServer: false
+        )
+
+        if paired {
+            try await GitClient(bridge: bridge, repo: repo).fetch()
+        } else {
+            print("Pairing failed.")
+        }
+    }
+}
+
 // MARK: - push
 
 struct PushCommand: Command {
