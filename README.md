@@ -94,7 +94,7 @@ bltgit pull "<DEVICE_NAME>"
 
 ---
 
-### Fetch without merging
+### Fetch
 
 Download new commits into `refs/remotes/bltgit/` without touching your working tree:
 
