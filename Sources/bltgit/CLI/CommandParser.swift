@@ -31,6 +31,10 @@ class CommandParser {
             if arguments.count == 3 {
                 return LogCommand(deviceName: arguments[2])
             }
+        case "status":
+            if arguments.count == 3 {
+                return StatusCommand(deviceName: arguments[2])
+            }
         case "devices":
              return DevicesCommand()
         default:
@@ -52,6 +56,7 @@ Usage:
   bltgit push <device>          Push commits to <device>
   bltgit clone <device> <dir>   Clone repo from <device> into <dir>
   bltgit log <device>           Show recent commits on <device> without pulling
+  bltgit status <device>        Compare local branches with <device> (no data transferred)
   bltgit devices                List trusted devices
 """)
     }

@@ -12,6 +12,7 @@ The git transfer tool that works when there's no network. Just Bluetooth.
 - **Full Git protocol**: reads and writes real Git packfiles via `git pack-objects` and `git index-pack`; works with any existing repo
 - **Push, pull, fetch and clone**: bidirectional; fetch downloads commits into `refs/remotes/bltgit/` without touching the working tree
 - **Remote log**: peek at the commit history on another Mac without downloading anything locally
+- **Remote status**: compare local branches with a remote in seconds, with no data transferred
 - **Chunked, reliable transfer**: 60 KB chunks with sequence numbers, ACKs, and retry logic survive transient BT glitches
 - **Mutual PIN pairing**: first-time connections require both sides to confirm a 6-digit PIN; subsequent connections skip it via a local trust store
 - **Non-blocking async I/O**: event-driven stream bridge with no polling loops; the CoreBluetooth RunLoop and async tasks never starve each other
@@ -131,6 +132,24 @@ bltgit log "<DEVICE_NAME>"
 # def5678  Bob Smith  1 day ago   Add chunked transfer retry
 # f1a2b3c  Jane Doe  2 days ago   Initial commit
 ```
+
+---
+
+### Check sync status
+
+See how your local branches compare to another Mac without transferring any data:
+
+```bash
+bltgit status "<DEVICE_NAME>"
+# Status vs <DEVICE_NAME>:
+# ------------------------------------------------------------
+#   develop  2 commits ahead
+#   feature  diverged (1 ahead, 3 behind)
+#   main     up to date
+#   old-exp  local only
+```
+
+Classifications: `up to date`, `N commits ahead`, `N commits behind`, `diverged`, `remote only`, `local only`, `remote has new commits (run bltgit fetch)`.
 
 ---
 

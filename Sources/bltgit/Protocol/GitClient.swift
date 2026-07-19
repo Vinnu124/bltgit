@@ -136,6 +136,84 @@ class GitClient: @unchecked Sendable {
         }
     }
 
+    /// Compare local refs with the remote's refs and print a summary without transferring any data.
+    func status(deviceName: String) async throws {
+        // Read the server's ref advertisement.
+        let serverRefs = try await readServerRefs()
+
+        // Close the protocol cleanly:
+        //   First flush  → ends the "wants" phase  (server exits phase-1 loop)
+        //   Second flush → ends the "haves" phase  (server exits phase-2 loop, sees wants==[] → returns)
+        try await bridge.write(data: PktLine.flush)
+        try await bridge.write(data: PktLine.flush)
+
+        let localRefs = try repo.allRefs()
+
+        // Classify every branch ref.
+        struct BranchLine {
+            let branch: String   // short name, e.g. "main"
+            let label: String    // human-readable status
+        }
+        var lines: [BranchLine] = []
+
+        // Branches the remote has.
+        for (name, remoteHash) in serverRefs.sorted(by: { $0.key < $1.key }) {
+            guard name.hasPrefix("refs/heads/") else { continue }
+            let branch = String(name.dropFirst("refs/heads/".count))
+
+            guard let localHash = localRefs[name] else {
+                lines.append(.init(branch: branch, label: "remote only (not cloned locally)"))
+                continue
+            }
+
+            if localHash == remoteHash {
+                lines.append(.init(branch: branch, label: "up to date"))
+                continue
+            }
+
+            // Both hashes differ. Use ancestry to classify.
+            let remoteInLocal = repo.hasCommit(remoteHash)
+
+            if remoteInLocal {
+                let weAreAhead  = repo.isAncestor(remoteHash, of: localHash)
+                let weAreBehind = repo.isAncestor(localHash,  of: remoteHash)
+
+                if weAreAhead && !weAreBehind {
+                    let n = repo.revListCount(from: remoteHash, to: localHash)
+                    lines.append(.init(branch: branch, label: "\(n) commit\(n == 1 ? "" : "s") ahead"))
+                } else if weAreBehind && !weAreAhead {
+                    let n = repo.revListCount(from: localHash, to: remoteHash)
+                    lines.append(.init(branch: branch, label: "\(n) commit\(n == 1 ? "" : "s") behind"))
+                } else {
+                    let ahead  = repo.revListCount(from: remoteHash, to: localHash)
+                    let behind = repo.revListCount(from: localHash,  to: remoteHash)
+                    lines.append(.init(branch: branch, label: "diverged (\(ahead) ahead, \(behind) behind)"))
+                }
+            } else {
+                // Remote hash not local — they have commits we have never fetched.
+                lines.append(.init(branch: branch, label: "remote has new commits (run bltgit fetch \(deviceName))"))
+            }
+        }
+
+        // Branches that only exist locally.
+        for name in localRefs.keys.sorted() where name.hasPrefix("refs/heads/") && serverRefs[name] == nil {
+            let branch = String(name.dropFirst("refs/heads/".count))
+            lines.append(.init(branch: branch, label: "local only"))
+        }
+
+        if lines.isEmpty {
+            print("No branches found.")
+            return
+        }
+
+        // Align the branch column.
+        let maxLen = lines.map { $0.branch.count }.max() ?? 0
+        for l in lines.sorted(by: { $0.branch < $1.branch }) {
+            let pad = String(repeating: " ", count: maxLen - l.branch.count + 2)
+            print("  \(l.branch)\(pad)\(l.label)")
+        }
+    }
+
     // MARK: - Private helpers
 
     /// Reads the server's initial ref advertisement and returns a `[refName: hash]` map.

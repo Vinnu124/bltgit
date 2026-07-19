@@ -114,6 +114,66 @@ class RepoManager {
         return []
     }
 
+    // MARK: - Ancestry helpers (used by status)
+
+    /// Returns true if the local object store contains `hash` (any object type).
+    func hasCommit(_ hash: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["cat-file", "-t", hash]
+        process.currentDirectoryURL = repoURL
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    /// Returns true if `ancestor` is a reachable ancestor of (or equal to) `descendant`.
+    /// Both commits must already be in the local repo; returns false if either is missing.
+    func isAncestor(_ ancestor: String, of descendant: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["merge-base", "--is-ancestor", ancestor, descendant]
+        process.currentDirectoryURL = repoURL
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    /// Returns the number of commits reachable from `to` but not from `from`
+    /// (i.e. the count for `from..to`).
+    func revListCount(from: String, to: String) -> Int {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["rev-list", "--count", "\(from)..\(to)"]
+        process.currentDirectoryURL = repoURL
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            if process.terminationStatus == 0,
+               let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               let n = Int(str) {
+                return n
+            }
+        } catch {}
+        return 0
+    }
+
     // MARK: - Pack generation
 
     func generatePack(wants: [String], haves: [String]) throws -> Data {
