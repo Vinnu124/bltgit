@@ -14,6 +14,7 @@ The git transfer tool that works when there's no network. Just Bluetooth.
 - **Remote log**: peek at the commit history on another Mac without downloading anything locally
 - **Remote status**: compare local branches with a remote in seconds, with no data transferred
 - **Chunked, reliable transfer**: 60 KB chunks with sequence numbers, ACKs, and retry logic survive transient BT glitches
+- **Transfer resume**: if a connection drops mid-transfer, just retry the same command — it picks up from the last saved checkpoint (at most 8 chunks back)
 - **Mutual PIN pairing**: first-time connections require both sides to confirm a 6-digit PIN; subsequent connections skip it via a local trust store
 - **Non-blocking async I/O**: event-driven stream bridge with no polling loops; the CoreBluetooth RunLoop and async tasks never starve each other
 
