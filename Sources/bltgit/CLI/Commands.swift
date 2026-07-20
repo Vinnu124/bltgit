@@ -309,3 +309,31 @@ struct DevicesCommand: Command {
         }
     }
 }
+
+// MARK: - unpair
+
+struct UnpairCommand: Command {
+    let deviceName: String
+
+    func run() async throws {
+        let devices = TrustStore.shared.listDevices()
+
+        // Match by name (case-insensitive) or raw UUID string.
+        guard let match = devices.first(where: {
+            $0.name.lowercased() == deviceName.lowercased() ||
+            $0.identifier.lowercased() == deviceName.lowercased()
+        }) else {
+            print("No trusted device named \"\(deviceName)\".")
+            print("Run 'bltgit devices' to see the list of trusted devices.")
+            return
+        }
+
+        guard let uuid = UUID(uuidString: match.identifier) else {
+            print("Internal error: stored identifier \"\(match.identifier)\" is not a valid UUID.")
+            return
+        }
+
+        TrustStore.shared.removeDevice(identifier: uuid)
+        print("Unpaired \"\(match.name)\". The next connection will require PIN confirmation.")
+    }
+}

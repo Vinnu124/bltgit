@@ -44,6 +44,10 @@ class CommandParser {
             }
         case "devices":
              return DevicesCommand()
+        case "unpair":
+            if arguments.count == 3 {
+                return UnpairCommand(deviceName: arguments[2])
+            }
         default:
              return nil
         }
@@ -66,6 +70,7 @@ Usage:
   bltgit log <device> --count N Show the last N commits (default: 20)
   bltgit status <device>        Compare local branches with <device> (no data transferred)
   bltgit devices                List trusted devices
+  bltgit unpair <device>         Remove a trusted device (next connect will re-prompt PIN)
 """)
     }
 }
