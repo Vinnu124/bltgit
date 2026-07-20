@@ -28,8 +28,15 @@ class CommandParser {
                  return CloneCommand(deviceName: arguments[2], directory: arguments[3])
              }
         case "log":
-            if arguments.count == 3 {
-                return LogCommand(deviceName: arguments[2])
+            if arguments.count >= 3 {
+                // bltgit log <device> [--count N]
+                var count = 20
+                if let flagIdx = arguments.firstIndex(of: "--count"),
+                   flagIdx + 1 < arguments.count,
+                   let n = Int(arguments[flagIdx + 1]), n > 0 {
+                    count = n
+                }
+                return LogCommand(deviceName: arguments[2], count: count)
             }
         case "status":
             if arguments.count == 3 {
@@ -56,6 +63,7 @@ Usage:
   bltgit push <device>          Push commits to <device>
   bltgit clone <device> <dir>   Clone repo from <device> into <dir>
   bltgit log <device>           Show recent commits on <device> without pulling
+  bltgit log <device> --count N Show the last N commits (default: 20)
   bltgit status <device>        Compare local branches with <device> (no data transferred)
   bltgit devices                List trusted devices
 """)

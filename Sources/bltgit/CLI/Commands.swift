@@ -179,6 +179,7 @@ struct PushCommand: Command {
 
 struct LogCommand: Command {
     let deviceName: String
+    let count: Int
 
     func run() async throws {
         print("Scanning for \(deviceName)...")
@@ -206,9 +207,9 @@ struct LogCommand: Command {
             // GitClient.log() doesn't touch the local repo, but the initialiser requires one.
             // We use the current directory; it doesn't need to be a valid git repo.
             let repo = try RepoManager(path: FileManager.default.currentDirectoryPath)
-            print("Commit log for \(device.name):")
+            print("Commit log for \(device.name) (last \(count)):")
             print(String(repeating: "-", count: 60))
-            try await GitClient(bridge: bridge, repo: repo).log()
+            try await GitClient(bridge: bridge, repo: repo).log(count: count)
         } else {
             print("Pairing failed.")
         }

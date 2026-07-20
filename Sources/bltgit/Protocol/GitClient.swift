@@ -112,14 +112,15 @@ class GitClient: @unchecked Sendable {
     }
 
     /// Print the remote's recent commit history without downloading any data locally.
-    func log() async throws {
+    func log(count: Int = 20) async throws {
         // Consume the server's ref advertisement — not needed for log.
         while let _ = try await PktLine.decodeFrom(stream: bridge) {}
 
-        try await bridge.write(data: PktLine.encode("bltgit-log\n"))
+        // Send the log request with the desired count: "bltgit-log N\n"
+        try await bridge.write(data: PktLine.encode("bltgit-log \(count)\n"))
         try await bridge.write(data: PktLine.flush)
 
-        var count = 0
+        var received = 0
         while let lineData = try await PktLine.decodeFrom(stream: bridge) {
             let line = String(data: lineData, encoding: .utf8) ?? ""
             let trimmed = line.trimmingCharacters(in: .newlines)
@@ -128,10 +129,10 @@ class GitClient: @unchecked Sendable {
                 return
             }
             print(trimmed)
-            count += 1
+            received += 1
         }
 
-        if count == 0 {
+        if received == 0 {
             print("No commits on remote.")
         }
     }

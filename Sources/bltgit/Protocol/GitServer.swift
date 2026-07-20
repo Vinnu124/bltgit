@@ -29,7 +29,8 @@ class GitServer: @unchecked Sendable {
         var haves: [String] = []
         var pushCommands: [(String, String, String)] = []
         var isPush = false
-        var isLog = false
+        var isLog  = false
+        var logCount = 20   // may be overridden by "bltgit-log N"
 
         // Phase 1: read commands until flush
         while true {
@@ -40,8 +41,13 @@ class GitServer: @unchecked Sendable {
                 if parts.count >= 2 {
                     wants.append(parts[1].trimmingCharacters(in: .whitespacesAndNewlines))
                 }
-            } else if line.trimmingCharacters(in: .whitespacesAndNewlines) == "bltgit-log" {
+            } else if line.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("bltgit-log") {
                 isLog = true
+                // Parse optional count: "bltgit-log N" → N (default 20)
+                let parts = line.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ")
+                if parts.count >= 2, let n = Int(parts[1]), n > 0 {
+                    logCount = n
+                }
             } else if line.count >= 82 && line.contains("refs/") {
                 // Push command: old_hash new_hash refname
                 isPush = true
@@ -72,7 +78,7 @@ class GitServer: @unchecked Sendable {
 
         // Handle log request: run git log and stream lines back as pkt-lines.
         if isLog {
-            let logLines = (try? repo.gitLog()) ?? []
+            let logLines = (try? repo.gitLog(maxCount: logCount)) ?? []
             if logLines.isEmpty {
                 try await bridge.write(data: PktLine.encode("(no commits yet)\n"))
             } else {
