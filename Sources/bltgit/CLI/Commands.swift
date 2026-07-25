@@ -254,6 +254,66 @@ struct StatusCommand: Command {
     }
 }
 
+// MARK: - diff
+
+struct DiffCommand: Command {
+    let deviceName: String
+
+    func run() async throws {
+        print("Scanning for \(deviceName)...")
+        let devices = try await Scanner().scan()
+
+        guard let device = devices.first(where: {
+            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
+        }) else {
+            print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
+            return
+        }
+
+        print("Connecting to \(device.name)...")
+        let bridge = try await L2CAPClient().connect(to: device)
+        defer { bridge.close() }
+
+        let paired = try await PairingManager.shared.performPairing(
+            bridge: bridge,
+            deviceName: device.name,
+            identifier: device.peripheral.identifier,
+            isServer: false
+        )
+
+        if paired {
+            let repo = try RepoManager(path: FileManager.default.currentDirectoryPath)
+            // Fetch the latest commits silently
+            try await GitClient(bridge: bridge, repo: repo).fetch(silent: true)
+            
+            let branch = repo.currentBranch()
+            let shortBranch = branch.hasPrefix("refs/heads/") ? String(branch.dropFirst("refs/heads/".count)) : branch
+            let remoteRef = "refs/remotes/bltgit/\(shortBranch)"
+            
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+            process.arguments = ["diff", "HEAD", remoteRef]
+            process.currentDirectoryURL = repo.repoURL
+            
+            let outPipe = Pipe()
+            process.standardOutput = outPipe
+            process.standardError = Pipe()
+            
+            try process.run()
+            let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            
+            if let string = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !string.isEmpty {
+                print(string)
+            } else {
+                print("No differences found. Local HEAD is up to date with remote.")
+            }
+        } else {
+            print("Pairing failed.")
+        }
+    }
+}
+
 // MARK: - clone
 
 struct CloneCommand: Command {

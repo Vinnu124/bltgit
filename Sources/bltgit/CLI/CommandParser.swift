@@ -42,6 +42,10 @@ class CommandParser {
             if arguments.count == 3 {
                 return StatusCommand(deviceName: arguments[2])
             }
+        case "diff":
+            if arguments.count == 3 {
+                return DiffCommand(deviceName: arguments[2])
+            }
         case "devices":
              return DevicesCommand()
         case "unpair":
@@ -68,6 +72,7 @@ Usage:
   bltgit clone <device> <dir>   Clone repo from <device> into <dir>
   bltgit log <device>           Show recent commits on <device> without pulling
   bltgit log <device> --count N Show the last N commits (default: 20)
+  bltgit diff <device>          Show what would be pulled from <device>
   bltgit status <device>        Compare local branches with <device> (no data transferred)
   bltgit devices                List trusted devices
   bltgit unpair <device>         Remove a trusted device (next connect will re-prompt PIN)
