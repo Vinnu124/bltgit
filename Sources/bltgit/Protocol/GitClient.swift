@@ -36,9 +36,9 @@ class GitClient: @unchecked Sendable {
 
     /// Download new commits into refs/remotes/bltgit/<branch> without touching the working tree.
     /// Mirrors what `git fetch` does: you can inspect and merge at your own pace.
-    func fetch() async throws {
+    func fetch(silent: Bool = false) async throws {
         guard let (serverRefs, packData) = try await negotiateAndReceivePack() else {
-            print("Already up to date.")
+            if !silent { print("Already up to date.") }
             return
         }
 
@@ -53,13 +53,15 @@ class GitClient: @unchecked Sendable {
             updatedRefs.append(remoteRef)
         }
 
-        print("Fetch complete.")
-        for ref in updatedRefs.sorted() {
-            print("  \(ref)")
+        if !silent {
+            print("Fetch complete.")
+            for ref in updatedRefs.sorted() {
+                print("  \(ref)")
+            }
+            print("")
+            print("To inspect:  git log refs/remotes/bltgit/main")
+            print("To merge:    git merge refs/remotes/bltgit/main")
         }
-        print("")
-        print("To inspect:  git log refs/remotes/bltgit/main")
-        print("To merge:    git merge refs/remotes/bltgit/main")
     }
 
     /// Push local commits to the remote.
@@ -73,7 +75,7 @@ class GitClient: @unchecked Sendable {
             return
         }
 
-        let branchName = "refs/heads/main" // TODO: resolve actual HEAD symbolic ref
+        let branchName = repo.currentBranch()
         let serverHash = serverRefs[branchName] ?? "0000000000000000000000000000000000000000"
 
         if serverHash == headHash {

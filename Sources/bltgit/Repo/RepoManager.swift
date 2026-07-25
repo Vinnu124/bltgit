@@ -61,6 +61,32 @@ class RepoManager {
         return refs
     }
 
+    /// Returns the symbolic ref of HEAD (e.g. "refs/heads/main").
+    /// Returns "refs/heads/main" as a fallback if HEAD is detached or missing.
+    func currentBranch() -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["symbolic-ref", "HEAD"]
+        process.currentDirectoryURL = repoURL
+
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            if process.terminationStatus == 0, let string = String(data: data, encoding: .utf8) {
+                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return trimmed
+                }
+            }
+        } catch {}
+        return "refs/heads/main"
+    }
+
     // MARK: - Commits
 
     func recentCommits() throws -> [String] {
