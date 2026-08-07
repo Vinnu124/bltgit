@@ -50,4 +50,16 @@ struct bltgitTests {
         let refs = try repo.allRefs()
         #expect(refs.isEmpty, "A newly initialized repo should have no refs")
     }
+
+    @Test("Command parser recognizes ping command")
+    func pingCommandParsing() {
+        let command = CommandParser.parse(arguments: ["bltgit", "ping", "MyMac"])
+        #expect(command is PingCommand, "Expected 'ping' to parse as PingCommand")
+    }
+
+    @Test("Ping command requires a device argument")
+    func pingCommandRequiresDevice() {
+        let command = CommandParser.parse(arguments: ["bltgit", "ping"])
+        #expect(command == nil, "Expected nil when ping is missing device argument")
+    }
 }
