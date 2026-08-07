@@ -11,6 +11,7 @@ The git transfer tool that works when there's no network. Just Bluetooth.
 - **Bluetooth L2CAP channels**: uses CoreBluetooth's direct L2CAP sockets for high-throughput streaming (no BLE GATT overhead)
 - **Full Git protocol**: reads and writes real Git packfiles via `git pack-objects` and `git index-pack`; works with any existing repo
 - **Push, pull, fetch and clone**: bidirectional; fetch downloads commits into `refs/remotes/bltgit/` without touching the working tree
+- **Connection check**: quickly verify Bluetooth reachability and trust setup with `bltgit ping <device>`
 - **Remote log**: peek at the commit history on another Mac without downloading anything locally
 - **Remote status**: compare local branches with a remote in seconds, with no data transferred
 - **Chunked, reliable transfer**: 60 KB chunks with sequence numbers, ACKs, and retry logic survive transient BT glitches
@@ -71,6 +72,15 @@ The Mac will advertise itself over Bluetooth and wait for connections. It handle
 ```bash
 bltgit discover
 # Found: <DEVICE_NAME>  <UUID> RSSI: -52 dBm
+```
+
+### Check connectivity before syncing
+
+Use this when you want to confirm the remote is reachable and paired before running `pull`, `push`, or `clone`:
+
+```bash
+bltgit ping "<DEVICE_NAME>"
+# Ping success: paired and connected to <DEVICE_NAME> (<UUID>)
 ```
 
 ---
