@@ -11,6 +11,10 @@ class CommandParser {
             return ServeCommand()
         case "discover":
             return DiscoverCommand()
+        case "ping":
+            if arguments.count == 3 {
+                return PingCommand(deviceName: arguments[2])
+            }
         case "pull":
             if arguments.count == 3 {
                 return PullCommand(deviceName: arguments[2])
@@ -66,6 +70,7 @@ bltgit - Git Over Bluetooth
 Usage:
   bltgit serve                  Serve the current directory over Bluetooth
   bltgit discover               Discover nearby bltgit devices
+    bltgit ping <device>          Test connection and pairing with <device>
   bltgit pull <device>          Pull commits from <device> (fetch + checkout)
   bltgit fetch <device>         Fetch commits into refs/remotes/bltgit/ without checkout
   bltgit push <device>          Push commits to <device>
