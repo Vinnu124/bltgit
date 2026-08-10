@@ -164,6 +164,19 @@ Classifications: `up to date`, `N commits ahead`, `N commits behind`, `diverged`
 
 ---
 
+### Preview a remote diff
+
+See what would change if you pulled from a remote, without merging anything locally:
+
+```bash
+bltgit diff "<DEVICE_NAME>"
+# Shows the diff between local HEAD and refs/remotes/bltgit/<branch>
+```
+
+This is useful when you want to inspect incoming changes before deciding whether to fetch, merge, or pull.
+
+---
+
 ### Manage trusted devices
 
 ```bash
