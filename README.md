@@ -83,6 +83,8 @@ bltgit ping "<DEVICE_NAME>"
 # Ping success: paired and connected to <DEVICE_NAME> (<UUID>)
 ```
 
+Device names are matched case-insensitively, and you can still pass the raw UUID from `bltgit discover`.
+
 ---
 
 ### Clone a remote repo
