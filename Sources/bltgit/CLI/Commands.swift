@@ -1,6 +1,23 @@
 import Foundation
 import CoreBluetooth
 
+func matchesDeviceIdentity(name: String, identifier: String, query: String) -> Bool {
+    let normalizedQuery = query.lowercased()
+    return name.lowercased() == normalizedQuery || identifier.lowercased() == normalizedQuery
+}
+
+func matchesDiscoveredDevice(_ device: DiscoveredDevice, query: String) -> Bool {
+    matchesDeviceIdentity(
+        name: device.name,
+        identifier: device.peripheral.identifier.uuidString,
+        query: query
+    )
+}
+
+func resolveDiscoveredDevice(from devices: [DiscoveredDevice], matching query: String) -> DiscoveredDevice? {
+    devices.first(where: { matchesDiscoveredDevice($0, query: query) })
+}
+
 @MainActor
 protocol Command {
     func run() async throws
@@ -76,9 +93,7 @@ struct PingCommand: Command {
         print("Scanning for \(deviceName)...")
         let devices = try await Scanner().scan()
 
-        guard let device = devices.first(where: {
-            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
-        }) else {
+        guard let device = resolveDiscoveredDevice(from: devices, matching: deviceName) else {
             print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
             return
         }
@@ -112,9 +127,7 @@ struct PullCommand: Command {
         print("Scanning for \(deviceName)...")
         let devices = try await Scanner().scan()
 
-        guard let device = devices.first(where: {
-            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
-        }) else {
+        guard let device = resolveDiscoveredDevice(from: devices, matching: deviceName) else {
             print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
             return
         }
@@ -148,9 +161,7 @@ struct FetchCommand: Command {
         print("Scanning for \(deviceName)...")
         let devices = try await Scanner().scan()
 
-        guard let device = devices.first(where: {
-            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
-        }) else {
+        guard let device = resolveDiscoveredDevice(from: devices, matching: deviceName) else {
             print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
             return
         }
@@ -184,9 +195,7 @@ struct PushCommand: Command {
         print("Scanning for \(deviceName)...")
         let devices = try await Scanner().scan()
 
-        guard let device = devices.first(where: {
-            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
-        }) else {
+        guard let device = resolveDiscoveredDevice(from: devices, matching: deviceName) else {
             print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
             return
         }
@@ -220,9 +229,7 @@ struct LogCommand: Command {
         print("Scanning for \(deviceName)...")
         let devices = try await Scanner().scan()
 
-        guard let device = devices.first(where: {
-            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
-        }) else {
+        guard let device = resolveDiscoveredDevice(from: devices, matching: deviceName) else {
             print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
             return
         }
@@ -260,9 +267,7 @@ struct StatusCommand: Command {
         print("Scanning for \(deviceName)...")
         let devices = try await Scanner().scan()
 
-        guard let device = devices.first(where: {
-            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
-        }) else {
+        guard let device = resolveDiscoveredDevice(from: devices, matching: deviceName) else {
             print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
             return
         }
@@ -298,9 +303,7 @@ struct DiffCommand: Command {
         print("Scanning for \(deviceName)...")
         let devices = try await Scanner().scan()
 
-        guard let device = devices.first(where: {
-            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
-        }) else {
+        guard let device = resolveDiscoveredDevice(from: devices, matching: deviceName) else {
             print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
             return
         }
@@ -360,9 +363,7 @@ struct CloneCommand: Command {
         print("Scanning for \(deviceName)...")
         let devices = try await Scanner().scan()
 
-        guard let device = devices.first(where: {
-            $0.name == deviceName || $0.peripheral.identifier.uuidString == deviceName
-        }) else {
+        guard let device = resolveDiscoveredDevice(from: devices, matching: deviceName) else {
             print("Device not found. Make sure 'bltgit serve' is running on \(deviceName).")
             return
         }
