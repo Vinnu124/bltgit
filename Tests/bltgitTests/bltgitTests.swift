@@ -62,4 +62,13 @@ struct bltgitTests {
         let command = CommandParser.parse(arguments: ["bltgit", "ping"])
         #expect(command == nil, "Expected nil when ping is missing device argument")
     }
+
+    @Test("Device matching is case-insensitive and supports UUIDs")
+    func deviceMatchingIgnoresCase() {
+        let identifier = "A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D"
+
+        #expect(matchesDeviceIdentity(name: "MyMac", identifier: identifier, query: "mymac"))
+        #expect(matchesDeviceIdentity(name: "MyMac", identifier: identifier, query: identifier.lowercased()))
+        #expect(!matchesDeviceIdentity(name: "MyMac", identifier: identifier, query: "other"))
+    }
 }
