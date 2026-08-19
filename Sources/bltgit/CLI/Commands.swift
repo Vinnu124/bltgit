@@ -416,8 +416,7 @@ struct UnpairCommand: Command {
 
         // Match by name (case-insensitive) or raw UUID string.
         guard let match = devices.first(where: {
-            $0.name.lowercased() == deviceName.lowercased() ||
-            $0.identifier.lowercased() == deviceName.lowercased()
+            matchesDeviceIdentity(name: $0.name, identifier: $0.identifier, query: deviceName)
         }) else {
             print("No trusted device named \"\(deviceName)\".")
             print("Run 'bltgit devices' to see the list of trusted devices.")
@@ -431,5 +430,23 @@ struct UnpairCommand: Command {
 
         TrustStore.shared.removeDevice(identifier: uuid)
         print("Unpaired \"\(match.name)\". The next connection will require PIN confirmation.")
+    }
+}
+
+// MARK: - help
+
+struct HelpCommand: Command {
+    func run() async throws {
+        CommandParser.printHelp()
+    }
+}
+
+// MARK: - version
+
+struct VersionCommand: Command {
+    static let version = "0.1.0"
+
+    func run() async throws {
+        print("bltgit \(Self.version)")
     }
 }
