@@ -56,6 +56,10 @@ class CommandParser {
             if arguments.count == 3 {
                 return UnpairCommand(deviceName: arguments[2])
             }
+        case "help", "--help", "-h":
+            return HelpCommand()
+        case "version", "--version", "-v":
+            return VersionCommand()
         default:
              return nil
         }
@@ -70,7 +74,7 @@ bltgit - Git Over Bluetooth
 Usage:
   bltgit serve                  Serve the current directory over Bluetooth
   bltgit discover               Discover nearby bltgit devices
-    bltgit ping <device>          Test connection and pairing with <device>
+  bltgit ping <device>          Test connection and pairing with <device>
   bltgit pull <device>          Pull commits from <device> (fetch + checkout)
   bltgit fetch <device>         Fetch commits into refs/remotes/bltgit/ without checkout
   bltgit push <device>          Push commits to <device>
@@ -80,7 +84,12 @@ Usage:
   bltgit diff <device>          Show what would be pulled from <device>
   bltgit status <device>        Compare local branches with <device> (no data transferred)
   bltgit devices                List trusted devices
-  bltgit unpair <device>         Remove a trusted device (next connect will re-prompt PIN)
+  bltgit unpair <device>        Remove a trusted device (next connect will re-prompt PIN)
+  bltgit help                   Show this help text
+  bltgit version                Show the bltgit version
+
+Device arguments accept either the device name (case-insensitive) or the
+UUID printed by 'bltgit discover'.
 """)
     }
 }
