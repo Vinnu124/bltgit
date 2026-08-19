@@ -63,6 +63,24 @@ struct bltgitTests {
         #expect(command == nil, "Expected nil when ping is missing device argument")
     }
 
+    @Test("Help is a real command, not an unknown-argument fallback", arguments: ["help", "--help", "-h"])
+    func helpCommandParsing(argument: String) {
+        let command = CommandParser.parse(arguments: ["bltgit", argument])
+        #expect(command is HelpCommand, "Expected '\(argument)' to parse as HelpCommand")
+    }
+
+    @Test("Version flags parse", arguments: ["version", "--version", "-v"])
+    func versionCommandParsing(argument: String) {
+        let command = CommandParser.parse(arguments: ["bltgit", argument])
+        #expect(command is VersionCommand, "Expected '\(argument)' to parse as VersionCommand")
+    }
+
+    @Test("Unknown commands still parse as nil")
+    func unknownCommandParsing() {
+        #expect(CommandParser.parse(arguments: ["bltgit", "frobnicate"]) == nil)
+        #expect(CommandParser.parse(arguments: ["bltgit"]) == nil)
+    }
+
     @Test("Device matching is case-insensitive and supports UUIDs")
     func deviceMatchingIgnoresCase() {
         let identifier = "A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D"
